@@ -16,8 +16,12 @@ import {
   setColor,
   toggleLight,
 } from "./lib/hue";
-import { Light } from "./lib/types";
+import { Light, Group } from "./lib/types";
 import { getAccessoryTitle, getIcon, getIconForColor } from "./lib/utils";
+
+const EXCLUDED_GROUPS = [
+  "0", // Group 0 - All Lights
+];
 
 export default function Command() {
   return (
@@ -28,26 +32,27 @@ export default function Command() {
 }
 
 function LightList() {
-  const { data, isValidating, mutate } = useLights();
+  const { data: lights, isValidating: isValidatingLights, mutate: mutateLights } = useLights();
+  const { data: groups, isValidating: isValidatingGroups } = useGroups();
 
   // Ideally we can move all of that to a separate action, unfortunatley our current component tree doesn't work with SWR
   // The actoin wouldn't be part of the SWRConfig and therefore mutates a different cache
   async function handleToggle(index: number) {
-    if (!data) {
+    if (!lights) {
       return;
     }
 
-    const light = data[index];
+    const light = lights[index];
     const toast = await showToast(ToastStyle.Animated, light.state.on ? "Turning light off" : "Turning light on");
 
     try {
-      const newLights = [...data];
+      const newLights = [...lights];
       newLights[index] = { ...light, state: { ...light.state, on: !light.state.on } };
-      mutate(newLights, false);
+      mutateLights(newLights, false);
 
       await toggleLight(light);
 
-      mutate();
+      mutateLights();
 
       toast.style = ToastStyle.Success;
       toast.title = light.state.on ? "Turned light off" : "Turned light on";
@@ -59,21 +64,21 @@ function LightList() {
   }
 
   async function handleIncreaseBrightness(index: number) {
-    if (!data) {
+    if (!lights) {
       return;
     }
 
-    const light = data[index];
+    const light = lights[index];
     const toast = await showToast(ToastStyle.Animated, "Increasing brightness");
 
     try {
-      const newLights = [...data];
+      const newLights = [...lights];
       newLights[index] = { ...light, state: { ...light.state, on: true, brightness: calcIncreasedBrightness(light) } };
-      mutate(newLights, false);
+      mutateLights(newLights, false);
 
       await increaseBrightness(light);
 
-      mutate();
+      mutateLights();
 
       toast.style = ToastStyle.Success;
       toast.title = "Increased brightness";
@@ -85,21 +90,21 @@ function LightList() {
   }
 
   async function handleDecreaseBrightness(index: number) {
-    if (!data) {
+    if (!lights) {
       return;
     }
 
-    const light = data[index];
+    const light = lights[index];
     const toast = await showToast(ToastStyle.Animated, "Decreasing brightness");
 
     try {
-      const newLights = [...data];
+      const newLights = [...lights];
       newLights[index] = { ...light, state: { ...light.state, on: true, brightness: calcDecreasedBrightness(light) } };
-      mutate(newLights, false);
+      mutateLights(newLights, false);
 
       await decreaseBrightness(light);
 
-      mutate();
+      mutateLights();
 
       toast.style = ToastStyle.Success;
       toast.title = "Decreased brightness";
@@ -111,21 +116,21 @@ function LightList() {
   }
 
   async function handleSetBrightness(index: number, percentage: number) {
-    if (!data) {
+    if (!lights) {
       return;
     }
 
-    const light = data[index];
+    const light = lights[index];
     const toast = await showToast(ToastStyle.Animated, "Setting brightness");
 
     try {
-      const newLights = [...data];
+      const newLights = [...lights];
       newLights[index] = { ...light, state: { ...light.state, on: true, brightness: (percentage / 100) * 255 } };
-      mutate(newLights, false);
+      mutateLights(newLights, false);
 
       await setBrightness(light, percentage);
 
-      mutate();
+      mutateLights();
 
       toast.style = ToastStyle.Success;
       toast.title = `Set brightness to ${(percentage / 100).toLocaleString("en", { style: "percent" })}`;
@@ -137,21 +142,21 @@ function LightList() {
   }
 
   async function handleSetColor(index: number, color: CssColor) {
-    if (!data) {
+    if (!lights) {
       return;
     }
 
-    const light = data[index];
+    const light = lights[index];
     const toast = await showToast(ToastStyle.Animated, "Setting color");
 
     try {
-      const newLights = [...data];
+      const newLights = [...lights];
       newLights[index] = { ...light, state: { ...light.state, on: true, xy: convertToXY(color.value) } };
-      mutate(newLights, false);
+      mutateLights(newLights, false);
 
       await setColor(light, color.value);
 
-      mutate();
+      mutateLights();
 
       toast.style = ToastStyle.Success;
       toast.title = `Set color to ${color.name}`;
@@ -162,32 +167,48 @@ function LightList() {
     }
   }
 
+  console.log(groups);
+
   return (
-    <List isLoading={isValidating}>
-      {data?.map((light, index: number) => (
-        <List.Item
-          key={light.id}
-          title={light.name}
-          icon={getIcon(light)}
-          accessoryTitle={getAccessoryTitle(light)}
-          actions={
-            <ActionPanel title={light.name}>
-              <ActionPanel.Section>
-                <ToggleLightAction light={light} onToggle={() => handleToggle(index)} />
-              </ActionPanel.Section>
-              <ActionPanel.Section>
-                <SetColorAction light={light} onSet={(color) => handleSetColor(index, color)} />
-                <SetBrightnessAction light={light} onSet={(percentage) => handleSetBrightness(index, percentage)} />
-                <IncreaseBrightnessAction light={light} onIncrease={() => handleIncreaseBrightness(index)} />
-                <DecreaseBrightnessAction light={light} onDecrease={() => handleDecreaseBrightness(index)} />
-              </ActionPanel.Section>
-              <ActionPanel.Section>
-                <RefreshAction onRefresh={() => mutate()} />
-              </ActionPanel.Section>
-            </ActionPanel>
-          }
-        />
-      ))}
+    <List isLoading={isValidatingLights || isValidatingGroups}>
+      {groups
+        ?.filter((group) => !EXCLUDED_GROUPS.includes(group.id))
+        .map((group, index) => (
+          <List.Section key={index} title={group.name}>
+            {lights
+              ?.filter((light) => {
+                console.log(group.lights, light.id);
+                return group.lights.includes(light.id);
+              })
+              .map((light, index: number) => (
+                <List.Item
+                  key={light.id}
+                  title={light.name}
+                  icon={getIcon(light)}
+                  accessoryTitle={getAccessoryTitle(light)}
+                  actions={
+                    <ActionPanel title={light.name}>
+                      <ActionPanel.Section>
+                        <ToggleLightAction light={light} onToggle={() => handleToggle(index)} />
+                      </ActionPanel.Section>
+                      <ActionPanel.Section>
+                        <SetColorAction light={light} onSet={(color) => handleSetColor(index, color)} />
+                        <SetBrightnessAction
+                          light={light}
+                          onSet={(percentage) => handleSetBrightness(index, percentage)}
+                        />
+                        <IncreaseBrightnessAction light={light} onIncrease={() => handleIncreaseBrightness(index)} />
+                        <DecreaseBrightnessAction light={light} onDecrease={() => handleDecreaseBrightness(index)} />
+                      </ActionPanel.Section>
+                      <ActionPanel.Section>
+                        <RefreshAction onRefresh={() => mutateLights()} />
+                      </ActionPanel.Section>
+                    </ActionPanel>
+                  }
+                />
+              ))}
+          </List.Section>
+        ))}
     </List>
   );
 }
@@ -272,7 +293,7 @@ async function fetchLights(): Promise<Light[]> {
   const api = await createApi();
   const lights = await api.lights.getAll();
   return lights.map((light) => ({
-    id: light.id,
+    id: String(light.id),
     name: light.name,
     state: {
       on: dotProp.get(light, "state.on") ?? false,
@@ -285,4 +306,18 @@ async function fetchLights(): Promise<Light[]> {
 
 function useLights() {
   return useSWR("lights", fetchLights);
+}
+
+async function fetchGroups(): Promise<Group[]> {
+  const api = await createApi();
+  const groups = await api.groups.getAll();
+  return groups.map((group) => ({
+    id: String(group.id),
+    name: group.name,
+    lights: "lights" in group ? group.lights : [],
+  }));
+}
+
+function useGroups() {
+  return useSWR("groups", fetchGroups);
 }

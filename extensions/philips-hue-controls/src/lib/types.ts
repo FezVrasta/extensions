@@ -1,5 +1,7 @@
+type Id = string;
+
 export interface Light {
-  id: string | number;
+  id: Id;
   name: string;
   state: {
     on: boolean;
@@ -7,4 +9,10 @@ export interface Light {
     xy: [number, number];
     reachable: boolean;
   };
+}
+
+export interface Group {
+  id: Id;
+  name: string;
+  lights: Array<Id>;
 }
