@@ -1,4 +1,4 @@
-import { ActionPanel, Icon, List, showToast, ToastStyle } from "@raycast/api";
+import { ActionPanel, Icon, List, showToast, ToastStyle, getPreferenceValues } from "@raycast/api";
 import dotProp from "dot-prop";
 import useSWR, { SWRConfig } from "swr";
 import { BRIGHTNESSES } from "./lib/brightness";
@@ -19,9 +19,12 @@ import {
 import { Light, Group } from "./lib/types";
 import { getAccessoryTitle, getIcon, getIconForColor } from "./lib/utils";
 
-const EXCLUDED_GROUPS = [
+const EXCLUDED_GROUP_IDS = [
   "0", // Group 0 - All Lights
 ];
+
+const preferences = getPreferenceValues();
+const excludedGroupNames = preferences.excludedGroupNames.split(",").map((name: string) => name.trim());
 
 export default function Command() {
   return (
@@ -172,7 +175,8 @@ function LightList() {
   return (
     <List isLoading={isValidatingLights || isValidatingGroups}>
       {groups
-        ?.filter((group) => !EXCLUDED_GROUPS.includes(group.id))
+        ?.filter((group) => !EXCLUDED_GROUP_IDS.includes(group.id))
+        .filter((group) => !excludedGroupNames.includes(group.name))
         .map((group, index) => (
           <List.Section key={index} title={group.name}>
             {lights

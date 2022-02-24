@@ -36,6 +36,14 @@
       "description": "The username of your Philips Hue bridge",
       "type": "textfield",
       "required": true
+    },
+    {
+      "name": "excludedGroupNames",
+      "title": "Excluded Groups",
+      "description": "List of groups you don't want to display on the list, comma separated",
+      "type": "textfield",
+      "required": false,
+      "default": "Custom group for $lights"
     }
   ],
   "dependencies": {
