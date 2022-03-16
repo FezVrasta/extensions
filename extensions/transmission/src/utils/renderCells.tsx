@@ -2,6 +2,8 @@ import { splitEvery } from "ramda";
 import BitField from "bitfield";
 import { renderToString } from "react-dom/server";
 
+const MOCK = "//////8AAAAAAAAAAAAAAAAAAAAAAAA=";
+
 const colors = {
   gray: "#888888",
   accent: "#007DD7",
@@ -49,13 +51,19 @@ export async function renderPieces({
   width?: number;
   complete?: boolean;
 }): Promise<string> {
-  const buffer = Buffer.from(pieces, "base64");
+  const buffer = Buffer.from(MOCK, "base64");
   const bitfield = new BitField(buffer);
 
   const cellsCount = Math.pow(18, 2);
 
-  const bits: boolean[] = [];
+  let bits: boolean[] = [];
   bitfield.forEach((bit) => bits.push(bit));
+
+  // if we don't have enough pieces to compose a graph, we multiply them
+  if (bits.length < cellsCount) {
+    const diff = Math.ceil(cellsCount / bits.length);
+    bits = bits.map((bit) => Array.from({ length: diff }, () => bit)).flat();
+  }
 
   const cells =
     bits.length > 0
